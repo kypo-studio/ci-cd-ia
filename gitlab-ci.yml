@@ -1,5 +1,3 @@
-# .gitlab-ci.yml - Exercice 6: CI/CD avec Tests et Release
-
 image: node:20-alpine
 
 cache:
@@ -18,236 +16,69 @@ stages:
   - deploy
 
 # ========================================
-# ANCHORS - Configurations réutilisables
+# ANCHORS
 # ========================================
 
 .rules-no-tag-no-release: &rules-no-tag-no-release
   rules:
     - if: '$CI_COMMIT_TAG == null && $CI_COMMIT_MESSAGE !~ /^chore: release/'
 
-.rules-main-only: &rules-main-only
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-
 .git-setup: &git-setup
   before_script:
     - apk add --no-cache git
     - git config user.email "${GITLAB_USER_EMAIL}"
     - git config user.name "${GITLAB_USER_NAME}"
-    - git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git remote set-url origin "https://gitlab-ci-token:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
     - git checkout "${CI_COMMIT_BRANCH}"
     - git pull origin "${CI_COMMIT_BRANCH}" --rebase
 
-.node-setup: &node-setup
-  before_script:
-    - apk add --no-cache git
-    - npm ci --cache .npm --prefer-offline
-
 # ========================================
-# STAGE: .pre - Installation des dépendances
+# JOBS
 # ========================================
 
 install:
   stage: .pre
-  <<: *node-setup
-  artifacts:
-    paths:
-      - node_modules/
-    expire_in: 1 hour
-  cache:
-    key:
-      files:
-        - package-lock.json
-    paths:
-      - node_modules/
-      - .npm/
-    policy: pull-push
-
-# ========================================
-# STAGE: validate - Linting
-# ========================================
+  before_script:
+    - apk add --no-cache git
+  script:
+    - npm ci --cache .npm --prefer-offline
 
 lint:
   stage: validate
-  needs: ['install']
-  <<: *node-setup
   script:
     - npm run lint
   <<: *rules-no-tag-no-release
-  cache:
-    key:
-      files:
-        - package-lock.json
-    paths:
-      - node_modules/
-      - .npm/
-    policy: pull
 
-format-check:
-  stage: validate
-  needs: ['install']
-  <<: *node-setup
-  script:
-    - npm run format:check
-  <<: *rules-no-tag-no-release
-  allow_failure: true
-  cache:
-    key:
-      files:
-        - package-lock.json
-    paths:
-      - node_modules/
-    policy: pull
-
-# ========================================
-# STAGE: test - Tests unitaires avec couverture
-# ========================================
-
-test:unit:
+test:
   stage: test
-  needs: ['install', 'lint']
-  <<: *node-setup
   script:
-    - npm run test:unit
-  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
-  artifacts:
-    when: always
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: coverage/cobertura-coverage.xml
-      junit: coverage/junit.xml
-    paths:
-      - coverage/
-    expire_in: 30 days
+    - npm run test
   <<: *rules-no-tag-no-release
-  cache:
-    key:
-      files:
-        - package-lock.json
-    paths:
-      - node_modules/
-    policy: pull
 
-# ========================================
-# STAGE: build - Construction de l'image Docker
-# ========================================
-
-build:docker:
+build-image:
   stage: build
-  image: docker:24-alpine
+  image: docker:20.10.16
   services:
-    - docker:24-dind
-  needs: ['test:unit']
+    - docker:20.10.16-dind
   variables:
-    DOCKER_DRIVER: overlay2
-    DOCKER_TLS_CERTDIR: "/certs"
     IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
-    IMAGE_LATEST: $CI_REGISTRY_IMAGE:latest
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - |
-      echo "🐳 Building Docker image..."
-      docker build \
-        --build-arg NODE_ENV=production \
-        --platform linux/amd64 \
-        -t $IMAGE_TAG \
-        -t $IMAGE_LATEST \
-        .
-    - |
-      echo "📤 Pushing Docker images..."
-      docker push $IMAGE_TAG
-      docker push $IMAGE_LATEST
-    - |
-      echo "✅ Images pushed:"
-      echo "  - $IMAGE_TAG"
-      echo "  - $IMAGE_LATEST"
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker image build --platform=linux/amd64 -t $IMAGE_TAG -t $CI_REGISTRY_IMAGE:latest .
+    - docker push $CI_REGISTRY_IMAGE --all-tags
   <<: *rules-no-tag-no-release
-
-# ========================================
-# STAGE: release - Versioning automatique
-# ========================================
 
 release:
   stage: release
-  needs: ['build:docker']
   when: manual
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null && $CI_COMMIT_TITLE !~ /^chore: release/'
-  before_script:
-    - apk add --no-cache git
-    - git config user.email "${GITLAB_USER_EMAIL}"
-    - git config user.name "${GITLAB_USER_NAME}"
-    # Utiliser GITLAB_TOKEN pour les releases
-    - git remote set-url origin "https://gitlab-ci-token:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
-    - git checkout "${CI_COMMIT_BRANCH}"
-    - git pull origin "${CI_COMMIT_BRANCH}" --rebase
-    - npm ci --cache .npm --prefer-offline
+  <<: *git-setup
   script:
     - |
-      echo "🔍 Checking GITLAB_TOKEN..."
       if [ -z "$GITLAB_TOKEN" ]; then
-        echo "❌ ERROR: GITLAB_TOKEN is not set in CI/CD variables"
-        echo "Please add it in: Settings > CI/CD > Variables"
+        echo "ERROR: GITLAB_TOKEN is not set in CI/CD variables"
         exit 1
       fi
-    - |
-      echo "📦 Running release-it..."
-      export GITLAB_TOKEN="${GITLAB_TOKEN}"
-      npx --yes release-it --ci --verbose
-  artifacts:
-    paths:
-      - CHANGELOG.md
-    expire_in: 1 year
-  cache:
-    key:
-      files:
-        - package-lock.json
-    paths:
-      - node_modules/
-      - .npm/
-    policy: pull
-
-# ========================================
-# STAGE: deploy - Déploiement (placeholder)
-# ========================================
-
-deploy:staging:
-  stage: deploy
-  image: alpine:latest
-  needs: ['release']
-  <<: *rules-main-only
-  when: manual
-  environment:
-    name: staging
-    url: https://staging.example.com
-  before_script:
-    - apk add --no-cache curl
-  script:
-    - |
-      echo "🚀 Deploying to staging..."
-      echo "Image: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
-      echo "⚠️  Deploy script to be implemented"
-    # Exemple de déploiement (à adapter selon votre infrastructure)
-    # - kubectl set image deployment/app app=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
-    # - kubectl rollout status deployment/app
-
-deploy:production:
-  stage: deploy
-  image: alpine:latest
-  needs: ['deploy:staging']
-  rules:
-    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/'
-  when: manual
-  environment:
-    name: production
-    url: https://app.example.com
-  before_script:
-    - apk add --no-cache curl
-  script:
-    - |
-      echo "🚀 Deploying to production..."
-      echo "Tag: $CI_COMMIT_TAG"
-      echo "Image: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
-      echo "⚠️  Deploy script to be implemented"
+    - export GITLAB_TOKEN="${GITLAB_TOKEN}"
+    - npx --yes release-it --ci --verbose
