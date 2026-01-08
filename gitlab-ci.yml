@@ -1,0 +1,124 @@
+# .gitlab-ci.yml
+
+# ========================================
+# CONFIGURATION
+# ========================================
+image: node:20-alpine
+
+stages:
+  - .pre
+  - validate
+  - test
+  - build
+  - deploy
+
+variables:
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+  CYPRESS_CACHE_FOLDER: "$CI_PROJECT_DIR/.cache/Cypress"
+
+cache:
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - .npm
+    - node_modules
+
+# ========================================
+# ANCHORS
+# ========================================
+.rules-no-tag-no-release: &rules-no-tag-no-release
+  rules:
+    - if: '$CI_COMMIT_TAG == null && $CI_COMMIT_TITLE !~ /^chore: release/'
+
+.git-setup: &git-setup
+  before_script:
+    - apk add --no-cache git
+    - git config user.email "${GITLAB_USER_EMAIL}"
+    - git config user.name "${GITLAB_USER_NAME}"
+    - git remote set-url origin "https://gitlab-ci-token:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - git checkout "${CI_COMMIT_BRANCH}"
+    - git pull origin "${CI_COMMIT_BRANCH}" --rebase
+
+# ========================================
+# JOBS
+# ========================================
+
+install:
+  stage: .pre
+  before_script:
+    - apk add --no-cache git
+  script:
+    - npm ci --cache .npm --prefer-offline
+  artifacts:
+    paths:
+      - node_modules
+    expire_in: 1 hour
+
+lint:
+  stage: validate
+  script:
+    - npm run lint
+  <<: *rules-no-tag-no-release
+
+test:
+  stage: test
+  script:
+    - npm run test
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    paths:
+      - coverage
+    expire_in: 1 week
+  <<: *rules-no-tag-no-release
+
+build-image:
+  stage: build
+  image: docker:24-cli
+  services:
+    - docker:24-dind
+  variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build --platform=linux/amd64 -t $IMAGE_TAG -t $CI_REGISTRY_IMAGE:latest .
+    - docker push $CI_REGISTRY_IMAGE --all-tags
+  <<: *rules-no-tag-no-release
+
+deploy:
+  stage: deploy
+  image: debian:bullseye-slim
+  needs:
+    - build-image
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null && $CI_COMMIT_TITLE !~ /^chore: release/'
+  before_script:
+    - apt-get update -y
+    - apt-get install -y openssh-client
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE" | tr -d '\r' | ssh-add -
+    - ssh-keyscan -H $(echo $SSH_SERVER | cut -d@ -f2) >> ~/.ssh/known_hosts
+  script:
+    - ssh "$SSH_SERVER" "mkdir -p ~/gemini-api"
+    - scp docker-compose.yml "$SSH_SERVER:~/gemini-api/"
+    - ssh "$SSH_SERVER" "sudo docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY"
+    - |
+      ssh "$SSH_SERVER" "
+        cd ~/gemini-api
+        export CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE
+        export CI_COMMIT_SHORT_SHA=$CI_COMMIT_SHORT_SHA
+        export GEMINI_API_KEY=$GEMINI_API_KEY
+        sudo docker-compose pull
+        sudo docker-compose up -d --remove-orphans
+        sudo docker-compose ps
+      "
+  environment:
+    name: production
+    url: http://$(echo $SSH_SERVER | cut -d@ -f2)

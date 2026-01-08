@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini AI Chat - Interface Web</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🤖</span>
+                <h1>Gemini AI Assistant</h1>
+            </div>
+            <div class="status" id="status">
+                <span class="status-indicator"></span>
+                <span class="status-text">Connexion...</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Chat Section -->
+            <section class="chat-section">
+                <div class="section-header">
+                    <h2>💬 Chat Interactif</h2>
+                    <button class="clear-btn" id="clearChat">Effacer</button>
+                </div>
+                
+                <div class="chat-container" id="chatContainer">
+                    <div class="welcome-message">
+                        <h3>👋 Bienvenue !</h3>
+                        <p>Posez-moi n'importe quelle question et je vous répondrai avec l'aide de Gemini AI.</p>
+                    </div>
+                </div>
+
+                <form class="chat-form" id="chatForm">
+                    <input 
+                        type="text" 
+                        class="chat-input" 
+                        id="chatInput" 
+                        placeholder="Écrivez votre message ici..."
+                        autocomplete="off"
+                    >
+                    <button type="submit" class="send-btn" id="sendBtn">
+                        <span>Envoyer</span>
+                        <span class="send-icon">📤</span>
+                    </button>
+                </form>
+            </section>
+
+            <!-- Quick Generate Section -->
+            <section class="generate-section">
+                <div class="section-header">
+                    <h2>⚡ Génération Rapide</h2>
+                </div>
+                
+                <div class="quick-prompts">
+                    <button class="prompt-btn" data-prompt="Écris un poème court sur l'IA">
+                        📝 Poème sur l'IA
+                    </button>
+                    <button class="prompt-btn" data-prompt="Explique le machine learning en termes simples">
+                        🧠 Machine Learning
+                    </button>
+                    <button class="prompt-btn" data-prompt="Donne-moi 3 idées de projets web innovants">
+                        💡 Idées de projets
+                    </button>
+                    <button class="prompt-btn" data-prompt="Raconte-moi une blague de programmeur">
+                        😄 Blague de dev
+                    </button>
+                </div>
+
+                <form class="generate-form" id="generateForm">
+                    <textarea 
+                        class="generate-input" 
+                        id="generateInput" 
+                        placeholder="Entrez votre prompt personnalisé..."
+                        rows="3"
+                    ></textarea>
+                    <button type="submit" class="generate-btn">
+                        ✨ Générer
+                    </button>
+                </form>
+
+                <div class="result-container" id="resultContainer" style="display: none;">
+                    <h3>Résultat :</h3>
+                    <div class="result-content" id="resultContent"></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Propulsé par <strong>Google Gemini AI</strong> 🚀</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
