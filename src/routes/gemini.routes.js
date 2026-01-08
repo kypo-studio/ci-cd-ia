@@ -12,7 +12,7 @@ router.get('/health', (req, res) => {
     success: true,
     service: 'gemini-api',
     status: 'healthy',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -28,7 +28,7 @@ router.post('/generate', async (req, res) => {
     if (!prompt) {
       return res.status(400).json({
         success: false,
-        error: 'Prompt is required'
+        error: 'Prompt is required',
       });
     }
 
@@ -38,13 +38,13 @@ router.post('/generate', async (req, res) => {
 
     res.json({
       success: true,
-      data: { text }
+      data: { text },
     });
   } catch (error) {
     console.error('❌ Generate route error:', error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -59,10 +59,14 @@ router.post('/chat', async (req, res) => {
     const { message, history } = req.body;
 
     // Validation
-    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    if (
+      !message ||
+      typeof message !== 'string' ||
+      message.trim().length === 0
+    ) {
       return res.status(400).json({
         success: false,
-        error: 'Message is required and must be a non-empty string'
+        error: 'Message is required and must be a non-empty string',
       });
     }
 
@@ -71,7 +75,7 @@ router.post('/chat', async (req, res) => {
 
     console.log('💬 Chat request:', {
       message: message.substring(0, 50) + '...',
-      historyLength: chatHistory.length
+      historyLength: chatHistory.length,
     });
 
     // Appeler le service Gemini
@@ -82,26 +86,26 @@ router.post('/chat', async (req, res) => {
       ...chatHistory,
       {
         role: 'user',
-        parts: [{ text: message }]
+        parts: [{ text: message }],
       },
       {
         role: 'model',
-        parts: [{ text: response }]
-      }
+        parts: [{ text: response }],
+      },
     ];
 
     res.json({
       success: true,
       data: {
         text: response,
-        history: newHistory
-      }
+        history: newHistory,
+      },
     });
   } catch (error) {
     console.error('❌ Chat route error:', error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -118,7 +122,7 @@ router.post('/analyze-image', async (req, res) => {
     if (!image || !prompt) {
       return res.status(400).json({
         success: false,
-        error: 'Image and prompt are required'
+        error: 'Image and prompt are required',
       });
     }
 
@@ -128,13 +132,13 @@ router.post('/analyze-image', async (req, res) => {
 
     res.json({
       success: true,
-      data: { response }
+      data: { response },
     });
   } catch (error) {
     console.error('❌ Analyze image route error:', error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
 });

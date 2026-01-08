@@ -5,16 +5,16 @@ class GeminiService {
   constructor() {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
-      
+
       if (!apiKey) {
         throw new Error('GEMINI_API_KEY is not defined');
       }
 
       this.genAI = new GoogleGenerativeAI(apiKey);
-      this.model = this.genAI.getGenerativeModel({ 
-        model: 'gemini-2.5-flash-lite'
+      this.model = this.genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash-lite',
       });
-      
+
       console.log('✅ Gemini service initialized');
     } catch (error) {
       console.error('❌ Gemini initialization error:', error);
@@ -92,8 +92,8 @@ class GeminiService {
       const imagePart = {
         inlineData: {
           data: imageData,
-          mimeType: 'image/jpeg'
-        }
+          mimeType: 'image/jpeg',
+        },
       };
 
       const result = await this.model.generateContent([prompt, imagePart]);

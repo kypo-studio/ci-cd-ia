@@ -11,8 +11,8 @@ class GeminiController {
       const { prompt } = req.body;
 
       if (!prompt) {
-        return res.status(400).json({ 
-          error: 'Prompt is required' 
+        return res.status(400).json({
+          error: 'Prompt is required',
         });
       }
 
@@ -22,14 +22,14 @@ class GeminiController {
         success: true,
         data: {
           prompt,
-          response: text
-        }
+          response: text,
+        },
       });
     } catch (error) {
       console.error('Generate error:', error);
       res.status(500).json({
         success: false,
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -43,8 +43,8 @@ class GeminiController {
       const { messages } = req.body;
 
       if (!messages || !Array.isArray(messages) || messages.length === 0) {
-        return res.status(400).json({ 
-          error: 'Messages array is required' 
+        return res.status(400).json({
+          error: 'Messages array is required',
         });
       }
 
@@ -53,14 +53,14 @@ class GeminiController {
       res.json({
         success: true,
         data: {
-          response
-        }
+          response,
+        },
       });
     } catch (error) {
       console.error('Chat error:', error);
       res.status(500).json({
         success: false,
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -74,8 +74,8 @@ class GeminiController {
       const { image, prompt } = req.body;
 
       if (!image) {
-        return res.status(400).json({ 
-          error: 'Image (base64) is required' 
+        return res.status(400).json({
+          error: 'Image (base64) is required',
         });
       }
 
@@ -84,14 +84,14 @@ class GeminiController {
       res.json({
         success: true,
         data: {
-          response
-        }
+          response,
+        },
       });
     } catch (error) {
       console.error('Analyze image error:', error);
       res.status(500).json({
         success: false,
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -104,7 +104,7 @@ class GeminiController {
       success: true,
       service: 'gemini-api',
       status: 'healthy',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 }

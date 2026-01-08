@@ -1,21 +1,18 @@
-// jest.config.js
 module.exports = {
   testEnvironment: 'node',
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
     'src/**/*.js',
-    'index.js',
-    '!**/node_modules/**'
+    '!src/**/*.test.js',
+    '!**/node_modules/**',
   ],
-  testMatch: [
-    '**/tests/**/*.test.js'
-  ],
+  testMatch: ['**/tests/**/*.test.js'],
   coverageThreshold: {
     global: {
-      branches: 50,
-      functions: 50,
-      lines: 50,
-      statements: 50
-    }
-  }
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70,
+    },
+  },
 };
