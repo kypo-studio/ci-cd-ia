@@ -1,4 +1,4 @@
-stages:
+xstages:
   - validate
   - test
   - build
@@ -14,11 +14,11 @@ variables:
 
 lint:
   stage: validate
-  image: python:3.11-slim
+  image: node:20-alpine
   before_script:
-    - pip install flake8
+    - npm install
   script:
-    - flake8 app/ --max-line-length=120
+    - npm run lint
 
 # ================================================================
 # STAGE 2: TESTS
@@ -26,21 +26,19 @@ lint:
 
 unit_tests:
   stage: test
-  image: python:3.11-slim
+  image: node:20-alpine
   before_script:
-    - pip install -r requirements.txt pytest
+    - npm install
   script:
-    - pytest tests/unit/ -v
+    - npm run test:unit
 
 e2e_tests:
   stage: test
-  image: python:3.11-slim
+  image: node:20-alpine
   before_script:
-    - pip install -r requirements.txt pytest requests
+    - npm install
   script:
-    - python app.py &
-    - sleep 5
-    - pytest tests/e2e/ -v
+    - npm run test:e2e
 
 # ================================================================
 # STAGE 3: BUILD
