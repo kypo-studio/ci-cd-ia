@@ -1,52 +1,49 @@
-# Dockerfile multi-stage pour production
-
-# Stage 1: Builder
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-# Copier les fichiers de dépendances
-COPY package*.json ./
-
-# Installer toutes les dépendances (dev + prod)
-RUN npm ci
-
-# Copier le code source
-COPY . .
-
-# Linting et tests (optionnel dans le build)
-# RUN npm run lint && npm test
-
-# Stage 2: Production
-FROM node:20-alpine AS production
+# Dockerfile
+# Build stage
+FROM python:3.11-slim as builder
 
 WORKDIR /app
 
-# Créer un utilisateur non-root
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copier uniquement package.json et package-lock.json
-COPY package*.json ./
+# Runtime stage
+FROM python:3.11-slim
 
-# Installer SEULEMENT les dépendances de production
-RUN npm ci --only=production && \
-    npm cache clean --force
+# Metadata
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION
 
-# Copier le code depuis le builder
-COPY --from=builder --chown=nodejs:nodejs /app/src ./src
-COPY --from=builder --chown=nodejs:nodejs /app/public ./public
-COPY --from=builder --chown=nodejs:nodejs /app/index.js ./
+LABEL org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.revision=$VCS_REF \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.title="Gemini API" \
+      org.opencontainers.image.description="API Flask pour Gemini AI"
 
-# Changer vers l'utilisateur non-root
-USER nodejs
+WORKDIR /app
 
-# Exposer le port
-EXPOSE 3000
+# Copy dependencies from builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
+COPY app.py .
+COPY config.py .
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
+
+# Expose port
+EXPOSE 8080
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
 
-# Démarrer l'application
-CMD ["node", "index.js"]
+# Run with gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "120", "app:app"]

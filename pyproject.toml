@@ -1,7 +1,10 @@
-[project]
-name = "ci-cd-ia"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.14"
-dependencies = []
+[tool.black]
+line-length = 120
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --cov=app --cov-report=xml --cov-report=html"
