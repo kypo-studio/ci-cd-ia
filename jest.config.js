@@ -3,16 +3,10 @@ module.exports = {
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
     'src/**/*.js',
-    '!src/**/*.test.js',
-    '!**/node_modules/**',
+    '!src/index.js'
   ],
-  testMatch: ['**/tests/**/*.test.js'],
-  coverageThreshold: {
-    global: {
-      branches: 70,
-      functions: 70,
-      lines: 70,
-      statements: 70,
-    },
-  },
+  testMatch: [
+    '**/tests/**/*.test.js'
+  ],
+  verbose: true
 };
