@@ -30,7 +30,6 @@ app.post('/generate', (req, res) => {
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
-  // Simulation de génération de texte
   const generatedText = `Generated response for: ${prompt}`;
   
   res.json({
@@ -46,15 +45,14 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Gestion des erreurs globales
-app.use((err, req, res, next) => {
+// Gestion des erreurs globales - paramètre _next ignoré
+app.use((err, req, res, _next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 3000;
 
-// Ne démarre le serveur que si ce n'est pas un import
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
