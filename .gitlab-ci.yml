@@ -1,85 +1,183 @@
-stages:
-  - validate
-  - test
-  - build
-  - release
+name: CI/CD Pipeline
 
-variables:
-  IMAGE_NAME: $CI_REGISTRY_IMAGE
-  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
-  DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: "/certs"
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - main
 
-# ================================================================
-# STAGE 1: VALIDATION
-# ================================================================
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
-lint:
-  stage: validate
-  image: node:20-alpine
-  before_script:
-    - npm install
-  script:
-    - npm run lint -- --ignore-pattern "public/**"
+jobs:
+  # ================================================================
+  # STAGE 1: VALIDATION
+  # ================================================================
+  
+  lint:
+    name: 🔍 Lint Code
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run lint
+        run: npm run lint -- --ignore-pattern "public/**"
 
-# ================================================================
-# STAGE 2: TESTS
-# ================================================================
+  # ================================================================
+  # STAGE 2: TESTS
+  # ================================================================
+  
+  unit_tests:
+    name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run unit tests
+        run: npm run test:unit
+  
+  e2e_tests:
+    name: 🌐 E2E Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    continue-on-error: true  # Équivalent de allow_failure: true
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run E2E tests
+        run: npm run test:e2e -- --passWithNoTests
 
-unit_tests:
-  stage: test
-  image: node:20-alpine
-  before_script:
-    - npm install
-  script:
-    - npm run test:unit
+  # ================================================================
+  # STAGE 3: BUILD
+  # ================================================================
+  
+  build_docker:
+    name: 🐳 Build & Push Docker
+    runs-on: ubuntu-latest
+    needs: [unit_tests, e2e_tests]
+    # Équivalent de only: [main, tags]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: 🔐 Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix={{branch}}-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: 🔨 Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: ✅ Docker images pushed successfully
+        run: echo "Docker images pushed to ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
 
-e2e_tests:
-  stage: test
-  image: node:20-alpine
-  before_script:
-    - npm install
-  script:
-    - npm run test:e2e -- --passWithNoTests
-  allow_failure: true
-
-# ================================================================
-# STAGE 3: BUILD
-# ================================================================
-
-build_docker:
-  stage: build
-  image: docker:27.4.1  # Version stable et existante
-  services:
-    - docker:27.4.1-dind  # Même version pour le service
-  variables:
-    DOCKER_DRIVER: overlay2
-    DOCKER_TLS_CERTDIR: "/certs"
-  before_script:
-    - echo "🔐 Logging in to GitLab Container Registry..."
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  script:
-    - echo "🔨 Building Docker image..."
-    - docker build -t $IMAGE_NAME:$IMAGE_TAG -t $IMAGE_NAME:latest .
-    - echo "📤 Pushing Docker images..."
-    - docker push $IMAGE_NAME:$IMAGE_TAG
-    - docker push $IMAGE_NAME:latest
-    - echo "✅ Docker images pushed successfully!"
-  only:
-    - main
-    - tags
-
-# ================================================================
-# STAGE 4: RELEASE
-# ================================================================
-
-release:
-  stage: release
-  image: registry.gitlab.com/gitlab-org/release-cli:latest
-  script:
-    - echo "🎉 Creating release $CI_COMMIT_TAG"
+  # ================================================================
+  # STAGE 4: RELEASE
+  # ================================================================
+  
   release:
-    tag_name: $CI_COMMIT_TAG
-    description: "Release $CI_COMMIT_TAG"
-  only:
-    - tags
+    name: 🎉 Create Release
+    runs-on: ubuntu-latest
+    needs: build_docker
+    # Équivalent de only: tags
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get tag name
+        id: tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
+      - name: 🎉 Creating release ${{ steps.tag.outputs.TAG }}
+        run: echo "Creating release ${{ steps.tag.outputs.TAG }}"
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.TAG }}
+          name: Release ${{ steps.tag.outputs.TAG }}
+          body: |
+            ## Release ${{ steps.tag.outputs.TAG }}
+            
+            ### Docker Images
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ```
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
