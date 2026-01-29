@@ -1,28 +1,37 @@
-# docker-compose.yml
 version: '3.8'
 
 services:
-  gemini-api:
-    image: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA:-latest}
-    container_name: gemini-api
-    restart: unless-stopped
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "5000:5000"
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - FLASK_ENV=development
+      - PORT=5000
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/gemini/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_URL=http://backend:5000
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  default:
+    name: cicd-network
